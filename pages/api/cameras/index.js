@@ -39,7 +39,7 @@ export default async function handler(req, res) {
   if (!url) return res.status(500).json({ error: 'Missing env vars' });
 
   if (req.method === 'GET') {
-    const r = await fetch(`${url}/rest/v1/cameras?order=created_at.asc`, { headers: headers() });
+    const r = await fetch(`${url}/rest/v1/cameras?select=*&order=created_at.asc`, { headers: headers() });
     if (!r.ok) return res.status(500).json({ error: 'Fetch failed' });
     return res.status(200).json((await r.json()).map(toJS));
   }

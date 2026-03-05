@@ -5,15 +5,18 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { id } = req.query;
-  const { photoData, mimeType, photoType } = req.body;
-  // photoType: 'install' | 'view'
+  // id comes from the request body, not query (this is a static route)
+  const { id, photoData, mimeType, photoType } = req.body;
 
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return res.status(500).json({ error: 'Missing env vars' });
+  }
+
+  if (!id) {
+    return res.status(400).json({ error: 'Missing camera id' });
   }
 
   try {
@@ -43,17 +46,23 @@ export default async function handler(req, res) {
 
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/camera-photos/${fileName}`;
 
-    // Update the camera row with the new URL
+    // Update the camera row with the new photo URL
     const dbField = photoType === 'install' ? 'photo_install_url' : 'screenshot_view_url';
-    await fetch(`${SUPABASE_URL}/rest/v1/cameras?id=eq.${id}`, {
+    const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/cameras?id=eq.${id}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
       },
       body: JSON.stringify({ [dbField]: publicUrl }),
     });
+
+    if (!dbRes.ok) {
+      const err = await dbRes.text();
+      return res.status(500).json({ error: 'DB update failed: ' + err });
+    }
 
     return res.status(200).json({ url: publicUrl });
   } catch (e) {
