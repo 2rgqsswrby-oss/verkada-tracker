@@ -150,7 +150,8 @@ export default function Tracker() {
     if (filterStatus === 'done') list = list.filter(isComplete);
     if (filterStatus === 'pending') list = list.filter(c => statusOf(c)==='PENDING');
     if (filterStatus === 'in-progress') list = list.filter(c => statusOf(c)==='IN PROG');
-    return [...list].sort((a,b) => sortBy==='floor'?(a.floor||'').localeCompare(b.floor||''):sortBy==='status'?statusOf(a).localeCompare(statusOf(b)):(a.name||'').localeCompare(b.name||''));
+    const floorIdx = f => FLOORS.indexOf(f) === -1 ? 999 : FLOORS.indexOf(f);
+    return [...list].sort((a,b) => sortBy==='floor'?(floorIdx(a.floor||'')-floorIdx(b.floor||'')):sortBy==='status'?statusOf(a).localeCompare(statusOf(b)):(a.name||'').localeCompare(b.name||''));
   }, [cameras, search, filterFloor, filterStatus, sortBy]);
 
   const done = cameras.filter(isComplete).length;
