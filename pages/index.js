@@ -107,6 +107,11 @@ export default function Tracker() {
     setEditing(cam.id);
   };
 
+  // updateLocalOnly: update React state only, used after photo uploads (DB already updated by upload API)
+  const updateLocalOnly = (id, fields) => {
+    setCameras(prev => prev.map(c => c.id === id ? { ...c, ...fields } : c));
+  };
+
   const updateCamera = async (id, fields) => {
     const updated = cameras.map(c => c.id === id ? { ...c, ...fields } : c);
     setCameras(updated);
@@ -314,12 +319,12 @@ export default function Tracker() {
                   <PhotoUpload
                     cameraId={editCam.id} photoType="install"
                     currentUrl={editCam.photoInstallUrl} label="📷 INSTALL PHOTO"
-                    onUploaded={url => updateCamera(editCam.id, { photoInstallUrl: url })}
+                    onUploaded={url => updateLocalOnly(editCam.id, { photoInstallUrl: url })}
                   />
                   <PhotoUpload
                     cameraId={editCam.id} photoType="view"
                     currentUrl={editCam.screenshotViewUrl} label="🖥️ CAMERA VIEW SCREENSHOT"
-                    onUploaded={url => updateCamera(editCam.id, { screenshotViewUrl: url })}
+                    onUploaded={url => updateLocalOnly(editCam.id, { screenshotViewUrl: url })}
                   />
                 </div>
 
