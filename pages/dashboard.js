@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 
-const TOTAL = 208;
+const TOTAL = 211;
 const FLOORS_ORDER = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
 
 const isComplete = (c) => c.name && c.floor && c.model && c.ip && c.switchName && c.switchPort && c.photoInstallUrl && c.screenshotViewUrl;

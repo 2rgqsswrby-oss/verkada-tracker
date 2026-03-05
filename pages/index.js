@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 
-const TOTAL = 208;
+const TOTAL = 211;
 const MODELS = ['CD52','CD62','CD52-E','CD62-E','CD82','CB51','CB61','CB81','CF81','CF82','CM61','CM62','CO52','CO62','CX51E','CX61E','Other'];
 const FLOORS = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
 
