@@ -33,11 +33,22 @@ create table cameras (
   photo_install_url text default '',
   screenshot_view_url text default '',
   notes text default '',
+  serial_number text default '',
   created_at timestamptz default now()
 );
 ```
 
 6. You should see **"Success. No rows returned"**
+
+---
+
+## STEP 1b — If You Already Have the App Deployed (Existing Users Only)
+
+Run this SQL in Supabase to add the new serial number column:
+
+```sql
+alter table cameras add column if not exists serial_number text default '';
+```
 
 ---
 

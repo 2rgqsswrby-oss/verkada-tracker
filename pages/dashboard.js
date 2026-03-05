@@ -48,6 +48,7 @@ function CameraModal({ camera, onClose }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:24 }}>
               {[
                 ['IP Address', camera.ip],
+                ['Serial Number', camera.serialNumber],
                 ['Camera Model', camera.model],
                 ['Switch', camera.switchName],
                 ['Switch Port', camera.switchPort],
@@ -157,10 +158,8 @@ export default function Dashboard() {
       {/* Header */}
       <div style={{ background:'#0d1b4b', padding:'22px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <div style={{ width:44, height:44, background:'#00e676', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 16px rgba(0,230,118,0.35)' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0d1b4b" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
-          </div>
           <div>
+          <img src="https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg" alt="Verkada" style={{ height:30, display:'block', marginBottom:4 }} />
             <div style={{ fontSize:20, fontWeight:800, color:'#fff' }}>Camera Upgrade Project</div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Verkada Security System Deployment · Live Progress</div>
           </div>
@@ -174,6 +173,7 @@ export default function Dashboard() {
             {lastUpdated && <div style={{ fontSize:11, color:'rgba(255,255,255,0.25)', marginTop:2 }}>Updated {lastUpdated.toLocaleTimeString()}</div>}
           </div>
           <button onClick={load} style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.6)', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>↻ Refresh</button>
+          <a href="/api/pdf" download style={{ background:'#00e676', color:'#000', padding:'6px 16px', borderRadius:6, fontSize:12, fontWeight:700, fontFamily:'Barlow,sans-serif', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:6 }}>⬇ Download PDF</a>
           <button onClick={()=>{ document.cookie='dashboard_auth=; Max-Age=0; Path=/'; window.location='/login?role=dashboard'; }} style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.4)', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Log Out</button>
         </div>
       </div>
@@ -283,6 +283,7 @@ export default function Dashboard() {
                   </div>
                   <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.floor?`${cam.floor==='Exterior'?'Exterior':`Floor ${cam.floor}`}`:'No floor'}</div>
                   <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.model||'No model'}</div>
+                  {cam.serialNumber && <div style={{ fontSize:10, color:'#b0bec5', fontFamily:'monospace' }}>{cam.serialNumber}</div>}
                   <div style={{ display:'flex', gap:6, marginTop:8 }}>
                     <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:cam.photoInstallUrl?'#e8f5e9':'#fafafa', color:cam.photoInstallUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>📷 {cam.photoInstallUrl?'✓':'—'}</span>
                     <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:cam.screenshotViewUrl?'#e8f5e9':'#fafafa', color:cam.screenshotViewUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>🖥️ {cam.screenshotViewUrl?'✓':'—'}</span>
@@ -297,10 +298,7 @@ export default function Dashboard() {
       <div style={{ padding:'16px 32px', borderTop:'1px solid #e0e4e8', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <span style={{ fontSize:12, color:'#b0bec5' }}>Data updated in real time by the installation team.</span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:18, height:18, background:'#0d1b4b', borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00e676" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
-          </div>
-          <span style={{ fontSize:12, color:'#90a4ae', fontWeight:600 }}>Powered by Verkada</span>
+          <img src="https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg" alt="Verkada" style={{ height:18 }} />
         </div>
       </div>
     </>

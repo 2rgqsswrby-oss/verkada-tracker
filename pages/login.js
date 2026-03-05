@@ -38,13 +38,9 @@ export default function Login() {
         <div style={{ width: '100%', maxWidth: 400 }}>
 
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 40, justifyContent: 'center' }}>
-            <div style={{ width: 48, height: 48, background: '#00e676', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,230,118,0.35)' }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0d1b4b" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/>
-              </svg>
-            </div>
-            <div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 40 }}>
+            <img src={isTracker ? 'https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg' : 'https://cdn.verkada.com/image/upload/v1671057149/brand/verkada-logo.svg'} alt="Verkada" style={{ height: 32 }} />
+            <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: isTracker ? '#fff' : '#0d1b4b', fontFamily: 'Barlow, sans-serif' }}>
                 {isTracker ? 'Deployment Tracker' : 'Camera Upgrade Project'}
               </div>

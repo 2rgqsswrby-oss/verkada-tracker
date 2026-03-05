@@ -18,6 +18,7 @@ const toJS = (r) => ({
   ip: r.ip || '',
   switchName: r.switch_name || '',
   switchPort: r.switch_port || '',
+  serialNumber: r.serial_number || '',
   photoInstallUrl: r.photo_install_url || '',
   screenshotViewUrl: r.screenshot_view_url || '',
   notes: r.notes || '',
@@ -32,6 +33,7 @@ const toDB = (c) => ({
   switch_name: c.switchName || '',
   switch_port: c.switchPort || '',
   notes: c.notes || '',
+  serial_number: c.serialNumber || '',
 });
 
 export default async function handler(req, res) {

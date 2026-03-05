@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 
 const TOTAL = 211;
-const MODELS = ['CD52','CD62','CD52-E','CD62-E','CD82','CB51','CB61','CB81','CF81','CF82','CM61','CM62','CO52','CO62','CX51E','CX61E','Other'];
+const MODELS = ['CM42','CF83-E','CD63','CD63-E','CD43-E','CB52-E','CP52-E','CY53-E'];
 const FLOORS = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
 
 const isComplete = (c) => c.name && c.floor && c.model && c.ip && c.switchName && c.switchPort && c.photoInstallUrl && c.screenshotViewUrl;
@@ -127,10 +127,10 @@ export default function Tracker() {
   };
 
   const exportCSV = () => {
-    const H = ['Camera Name','Floor','Model','IP Address','Switch Name','Switch Port','Install Photo','Screenshot','Notes','Status'];
+    const H = ['Camera Name','Floor','Model','Serial Number','IP Address','Switch Name','Switch Port','Install Photo','Screenshot','Notes','Status'];
     const esc = v => '"' + (v||'').replace(/"/g,'""') + '"';
     const rows = cameras.map(c => [
-      esc(c.name), esc(c.floor), esc(c.model), esc(c.ip), esc(c.switchName), esc(c.switchPort),
+      esc(c.name), esc(c.floor), esc(c.model), esc(c.serialNumber), esc(c.ip), esc(c.switchName), esc(c.switchPort),
       esc(c.photoInstallUrl ? 'Yes' : 'No'), esc(c.screenshotViewUrl ? 'Yes' : 'No'), esc(c.notes),
       esc(isComplete(c) ? 'Complete' : statusOf(c)==='IN PROG' ? 'In Progress' : 'Pending'),
     ].join(','));
@@ -186,10 +186,8 @@ export default function Tracker() {
       <div style={{ background:'#0d0d0f', minHeight:'100vh', color:'#e0e0e0', fontFamily:"'Share Tech Mono',monospace" }}>
         {/* Header */}
         <div style={{ background:'#0a0a0c', borderBottom:'2px solid #1e1e24', padding:'14px 22px', display:'flex', alignItems:'center', gap:14 }}>
-          <div style={{ width:34, height:34, background:'#00ff88', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
-          </div>
           <div>
+          <img src="https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg" alt="Verkada" style={{ height:28, display:'block', marginBottom:4 }} />
             <div style={{ fontSize:18, fontWeight:900, fontFamily:'Barlow,sans-serif', color:'#fff' }}>VERKADA DEPLOYMENT TRACKER</div>
             <div style={{ fontSize:10, color:'#555' }}>{cameras.length} / {TOTAL} cameras logged</div>
           </div>
@@ -245,7 +243,7 @@ export default function Tracker() {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr style={{ background:'#111116', borderBottom:'1px solid #2a2a35' }}>
-                    {['Status','Camera Name','Floor','Model','IP Address','Switch','Port','Install Photo','Cam View','Notes',''].map(h=>(
+                    {['Status','Camera Name','Floor','Model','Serial #','IP Address','Switch','Port','Install Photo','Cam View','Notes',''].map(h=>(
                       <th key={h} style={{ padding:'7px 10px', textAlign:'left', color:'#555', fontSize:10, whiteSpace:'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -267,6 +265,7 @@ export default function Tracker() {
                         <td style={{ padding:'7px 10px', color:cam.name?'#fff':'#333' }}>{cam.name||'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#aaa' }}>{cam.floor?`FL ${cam.floor}`:'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#00b4ff' }}>{cam.model||'—'}</td>
+                        <td style={{ padding:'7px 10px', color:'#aaa', fontFamily:"'Share Tech Mono',monospace" }}>{cam.serialNumber||'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#888' }}>{cam.ip||'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#aaa' }}>{cam.switchName||'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#aaa' }}>{cam.switchPort||'—'}</td>
@@ -291,7 +290,7 @@ export default function Tracker() {
                   <button onClick={()=>setEditing(null)} style={{ background:'none', border:'none', color:'#555', cursor:'pointer', fontSize:18 }}>✕</button>
                 </div>
 
-                {[['CAMERA NAME','name','e.g. Lobby-01'],['IP ADDRESS','ip','192.168.1.XXX'],['SWITCH NAME','switchName','e.g. IDF-3A'],['SWITCH PORT','switchPort','e.g. Gi1/0/12']].map(([label,key,ph])=>(
+                {[['CAMERA NAME','name','e.g. Lobby-01'],['SERIAL NUMBER','serialNumber','e.g. Q12345678'],['IP ADDRESS','ip','192.168.1.XXX'],['SWITCH NAME','switchName','e.g. IDF-3A'],['SWITCH PORT','switchPort','e.g. Gi1/0/12']].map(([label,key,ph])=>(
                   <div key={key} style={{ marginBottom:12 }}>
                     <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>{label}</label>
                     <input value={editCam[key]||''} placeholder={ph} onChange={e=>updateCamera(editCam.id,{[key]:e.target.value})} style={S.input}/>
@@ -335,7 +334,7 @@ export default function Tracker() {
 
                 <div style={{ padding:12, background:'#111116', borderRadius:4, border:'1px solid #1e1e24' }}>
                   <div style={{ fontSize:10, color:'#555', marginBottom:8 }}>COMPLETION</div>
-                  {[['Name',!!editCam.name],['Floor',!!editCam.floor],['Model',!!editCam.model],['IP',!!editCam.ip],['Switch',!!editCam.switchName],['Port',!!editCam.switchPort],['Install Photo',!!editCam.photoInstallUrl],['View Screenshot',!!editCam.screenshotViewUrl]].map(([l,v])=>(
+                  {[['Name',!!editCam.name],['Floor',!!editCam.floor],['Model',!!editCam.model],['IP',!!editCam.ip],['Switch',!!editCam.switchName],['Port',!!editCam.switchPort],['Serial #',!!editCam.serialNumber],['Install Photo',!!editCam.photoInstallUrl],['View Screenshot',!!editCam.screenshotViewUrl]].map(([l,v])=>(
                     <div key={l} style={{ display:'flex', gap:8, marginBottom:4 }}>
                       <span style={{ color:v?'#00ff88':'#333' }}>{v?'●':'○'}</span>
                       <span style={{ fontSize:11, color:v?'#aaa':'#444' }}>{l}</span>
