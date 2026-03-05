@@ -30,11 +30,19 @@ export default async function handler(req, res) {
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: 'Missing env vars' });
 
   // Fetch cameras
-  const dbRes = await fetch(`${SB_URL}/rest/v1/cameras?select=*&order=floor.asc,name.asc`, {
+  const dbRes = await fetch(`${SB_URL}/rest/v1/cameras?select=*&order=name.asc`, {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
   });
   if (!dbRes.ok) return res.status(500).json({ error: 'Failed to fetch cameras' });
   const cameras = await dbRes.json();
+
+  const FLOORS_ORDER_PDF = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
+  const floorIdxPDF = f => { const i = FLOORS_ORDER_PDF.indexOf(f); return i === -1 ? 999 : i; };
+  cameras.sort((a, b) => {
+    const fd = floorIdxPDF(a.floor || '') - floorIdxPDF(b.floor || '');
+    if (fd !== 0) return fd;
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
   const done      = cameras.filter(isComplete).length;
   const pct       = Math.round((done / TOTAL) * 100);
