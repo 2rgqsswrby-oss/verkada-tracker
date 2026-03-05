@@ -198,16 +198,24 @@ export default async function handler(req, res) {
   rect(0, 44, PW, 3, GREEN);
 
   // Column definitions
+  // trunc: hard-truncate a string to fit column width at font size 7
+  // PDFKit Helvetica at size 7 ≈ 4.0 pts per char (safe conservative estimate)
+  const trunc = (str, colW, pad = 8) => {
+    const maxChars = Math.floor((colW - pad) / 4.0);
+    if (!str) return '—';
+    return str.length > maxChars ? str.slice(0, maxChars - 1) + '…' : str;
+  };
+
   const COLS = [
-    { label: 'Camera Name',   key: 'name',          w: 100 },
-    { label: 'Floor',         key: 'floor',         w: 42  },
-    { label: 'Model',         key: 'model',         w: 58  },
+    { label: 'Camera Name',   key: 'name',          w: 118 },
+    { label: 'Floor',         key: 'floor',         w: 38  },
+    { label: 'Model',         key: 'model',         w: 52  },
     { label: 'Serial #',      key: 'serial_number', w: 72  },
     { label: 'IP Address',    key: 'ip',            w: 75  },
-    { label: 'Switch',        key: 'switch_name',   w: 70  },
-    { label: 'Port',          key: 'switch_port',   w: 55  },
-    { label: 'Photos',        key: '_photos',       w: 44  },
-    { label: 'Status',        key: '_status',       w: 56  },
+    { label: 'Switch',        key: 'switch_name',   w: 68  },
+    { label: 'Port',          key: 'switch_port',   w: 46  },
+    { label: 'Notes',         key: 'notes',         w: 80  },
+    { label: 'Status',        key: '_status',       w: 55  },
   ];
   const totalColW = COLS.reduce((s, c) => s + c.w, 0);
   const tableXStart = (PW - totalColW) / 2;
@@ -263,36 +271,41 @@ export default async function handler(req, res) {
     const accentCol = st === 'Complete' ? GREEN : st === 'In Progress' ? '#ffab00' : '#cfd8dc';
     rect(tableXStart, curY, 3, ROW_H, accentCol);
 
-    // Cell values
+    // Cell values — use trunc() to hard-clip text before handing to PDFKit
+    // so no wrapping or line-break issues can occur
     let cx = tableXStart;
     COLS.forEach(col => {
-      let val = '';
+      let raw = '';
       if (col.key === '_status') {
-        val = st;
-      } else if (col.key === '_photos') {
-        const p = (cam.photo_install_url ? 1 : 0) + (cam.screenshot_view_url ? 1 : 0);
-        val = p === 2 ? '✓ Both' : p === 1 ? '1 of 2' : 'None';
+        raw = st;
       } else {
-        val = cam[col.key] || '—';
+        raw = cam[col.key] || '';
       }
 
-      // Color logic
+      const val = trunc(raw, col.w);
+
+      // Color + font
       if (col.key === '_status') {
         fill(st === 'Complete' ? GREEN : st === 'In Progress' ? '#f57f17' : GRAY);
         doc.font('Helvetica-Bold');
       } else if (col.key === 'name') {
         fill(BLACK);
         doc.font('Helvetica-Bold');
-      } else if (col.key === '_photos') {
-        const p = (cam.photo_install_url ? 1 : 0) + (cam.screenshot_view_url ? 1 : 0);
-        fill(p === 2 ? GREEN : p === 1 ? '#f57f17' : GRAY);
+      } else if (col.key === 'notes') {
+        fill(GRAY);
         doc.font('Helvetica');
       } else {
         fill(GRAY);
         doc.font('Helvetica');
       }
 
-      doc.fontSize(7).text(val, cx + 4, curY + 4, { width: col.w - 6, ellipsis: true, lineBreak: false });
+      // lineBreak:false + explicit single-line height ensures no overflow
+      doc.fontSize(7).text(val, cx + 4, curY + 4, {
+        width: col.w - 6,
+        height: ROW_H - 6,
+        lineBreak: false,
+        ellipsis: false,   // we already truncated manually
+      });
       cx += col.w;
     });
 
