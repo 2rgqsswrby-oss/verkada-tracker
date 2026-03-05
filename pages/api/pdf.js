@@ -198,41 +198,81 @@ export default async function handler(req, res) {
   rect(0, 44, PW, 3, GREEN);
 
   // Column definitions
-  // trunc: hard-truncate a string to fit column width at font size 7
-  // PDFKit Helvetica at size 7 ≈ 4.0 pts per char (safe conservative estimate)
-  const trunc = (str, colW, pad = 8) => {
-    const maxChars = Math.floor((colW - pad) / 4.0);
-    if (!str) return '—';
-    return str.length > maxChars ? str.slice(0, maxChars - 1) + '…' : str;
-  };
-
+  // WRAP_COLS: columns that allow text to wrap and drive row height
   const COLS = [
-    { label: 'Camera Name',   key: 'name',          w: 118 },
-    { label: 'Floor',         key: 'floor',         w: 38  },
-    { label: 'Model',         key: 'model',         w: 52  },
-    { label: 'Serial #',      key: 'serial_number', w: 72  },
-    { label: 'IP Address',    key: 'ip',            w: 75  },
-    { label: 'Switch',        key: 'switch_name',   w: 68  },
-    { label: 'Port',          key: 'switch_port',   w: 46  },
-    { label: 'Notes',         key: 'notes',         w: 80  },
-    { label: 'Status',        key: '_status',       w: 55  },
+    { label: 'Camera Name',  key: 'name',          w: 118, wrap: true  },
+    { label: 'Floor',        key: 'floor',         w: 36,  wrap: false },
+    { label: 'Model',        key: 'model',         w: 50,  wrap: false },
+    { label: 'Serial #',     key: 'serial_number', w: 72,  wrap: false },
+    { label: 'IP Address',   key: 'ip',            w: 74,  wrap: false },
+    { label: 'Switch',       key: 'switch_name',   w: 66,  wrap: false },
+    { label: 'Port',         key: 'switch_port',   w: 44,  wrap: false },
+    { label: 'Notes',        key: 'notes',         w: 90,  wrap: true  },
+    { label: 'Status',       key: '_status',       w: 54,  wrap: false },
   ];
   const totalColW = COLS.reduce((s, c) => s + c.w, 0);
   const tableXStart = (PW - totalColW) / 2;
+
+  const FONT_SIZE  = 7;
+  const LINE_H     = 9;   // pts per line at font size 7
+  const PAD_V      = 5;   // vertical padding inside cell (top + bottom)
+  const MIN_ROW_H  = 16;
+
+  // Estimate how many lines a string will take in a given column width
+  // Helvetica 7pt: ~4.1 pts per char is a reliable conservative estimate
+  const estimateLines = (str, colW) => {
+    if (!str) return 1;
+    const charsPerLine = Math.floor((colW - 8) / 4.1);
+    if (charsPerLine <= 0) return 1;
+    // Split on existing newlines first, then wrap each segment
+    const segments = str.split(/\n/);
+    let lines = 0;
+    for (const seg of segments) {
+      lines += Math.max(1, Math.ceil(seg.length / charsPerLine));
+    }
+    return lines;
+  };
+
+  // Calculate the required height for a camera row
+  const rowHeight = (cam, st) => {
+    let maxLines = 1;
+    COLS.forEach(col => {
+      if (!col.wrap) return;
+      const raw = col.key === '_status' ? st : (cam[col.key] || '');
+      const lines = estimateLines(raw, col.w);
+      if (lines > maxLines) maxLines = lines;
+    });
+    return Math.max(MIN_ROW_H, maxLines * LINE_H + PAD_V * 2);
+  };
 
   const drawTableHeader = (yPos) => {
     let cx = tableXStart;
     rect(0, yPos, PW, 18, NAVY);
     COLS.forEach(col => {
       fill(WHITE);
-      doc.font('Helvetica-Bold').fontSize(7)
-        .text(col.label.toUpperCase(), cx + 4, yPos + 5, { width: col.w - 6, ellipsis: true });
+      doc.font('Helvetica-Bold').fontSize(FONT_SIZE)
+        .text(col.label.toUpperCase(), cx + 4, yPos + 5, { width: col.w - 6, lineBreak: false });
       cx += col.w;
     });
     return yPos + 18;
   };
 
-  let curY = drawTableHeader(52);
+  const addPageHeader = (continued) => {
+    rect(0, 0, PW, 44, NAVY);
+    fill(WHITE);
+    doc.font('Helvetica-Bold').fontSize(13).text('VERKADA', M, 14);
+    fill('#00c853');
+    doc.font('Helvetica').fontSize(7).text('DEPLOYMENT TRACKER', M, 30, { characterSpacing: 1.5 });
+    fill(WHITE);
+    doc.font('Helvetica').fontSize(9).text(
+      continued ? 'Camera Installation Details (continued)' : 'Camera Installation Details',
+      0, 18, { align: 'right', width: PW - M }
+    );
+    rect(0, 44, PW, 3, GREEN);
+    return drawTableHeader(52);
+  };
+
+  let curY = addPageHeader(false);
   let pageNum = 2;
 
   const addPageFooter = () => {
@@ -245,75 +285,69 @@ export default async function handler(req, res) {
     pageNum++;
   };
 
-  const ROW_H = 16;
   cameras.forEach((cam, i) => {
-    // New page if needed
-    if (curY + ROW_H > PH - 30) {
+    const st = statusOf(cam);
+    const rh = rowHeight(cam, st);
+
+    // New page if this row won't fit
+    if (curY + rh > PH - 30) {
       addPageFooter();
       doc.addPage({ size: 'LETTER', margin: 0 });
-      rect(0, 0, PW, 44, NAVY);
-      fill(WHITE);
-      doc.font('Helvetica-Bold').fontSize(13).text('VERKADA', M, 14);
-      fill('#00c853');
-      doc.font('Helvetica').fontSize(7).text('DEPLOYMENT TRACKER', M, 30, { characterSpacing: 1.5 });
-      fill(WHITE);
-      doc.font('Helvetica').fontSize(9).text('Camera Installation Details (continued)', 0, 18, { align: 'right', width: PW - M });
-      rect(0, 44, PW, 3, GREEN);
-      curY = drawTableHeader(52);
+      curY = addPageHeader(true);
     }
 
     // Row background
-    const rowBg = i % 2 === 0 ? WHITE : '#f5f7fa';
-    rect(0, curY, PW, ROW_H, rowBg);
+    rect(0, curY, PW, rh, i % 2 === 0 ? WHITE : '#f5f7fa');
 
-    // Status-based left accent
-    const st = statusOf(cam);
+    // Status accent stripe on left
     const accentCol = st === 'Complete' ? GREEN : st === 'In Progress' ? '#ffab00' : '#cfd8dc';
-    rect(tableXStart, curY, 3, ROW_H, accentCol);
+    rect(tableXStart, curY, 3, rh, accentCol);
 
-    // Cell values — use trunc() to hard-clip text before handing to PDFKit
-    // so no wrapping or line-break issues can occur
+    // Render each cell
     let cx = tableXStart;
     COLS.forEach(col => {
-      let raw = '';
-      if (col.key === '_status') {
-        raw = st;
-      } else {
-        raw = cam[col.key] || '';
-      }
+      const raw = col.key === '_status' ? st : (cam[col.key] || '—');
+      const val = raw === '' ? '—' : raw;
 
-      const val = trunc(raw, col.w);
-
-      // Color + font
+      // Font + color
       if (col.key === '_status') {
         fill(st === 'Complete' ? GREEN : st === 'In Progress' ? '#f57f17' : GRAY);
         doc.font('Helvetica-Bold');
       } else if (col.key === 'name') {
         fill(BLACK);
         doc.font('Helvetica-Bold');
-      } else if (col.key === 'notes') {
-        fill(GRAY);
-        doc.font('Helvetica');
       } else {
         fill(GRAY);
         doc.font('Helvetica');
       }
 
-      // lineBreak:false + explicit single-line height ensures no overflow
-      doc.fontSize(7).text(val, cx + 4, curY + 4, {
-        width: col.w - 6,
-        height: ROW_H - 6,
-        lineBreak: false,
-        ellipsis: false,   // we already truncated manually
-      });
+      if (col.wrap) {
+        // Allow wrapping — text will expand vertically within the pre-calculated row height
+        doc.fontSize(FONT_SIZE).text(val, cx + 4, curY + PAD_V, {
+          width: col.w - 8,
+          lineBreak: true,
+          lineGap: 1,
+        });
+      } else {
+        // Single line, no wrapping — strip newlines just in case
+        const singleLine = val.replace(/[\n\r]+/g, ' ');
+        doc.fontSize(FONT_SIZE).text(singleLine, cx + 4, curY + PAD_V, {
+          width: col.w - 8,
+          lineBreak: false,
+          ellipsis: true,
+        });
+      }
+
       cx += col.w;
     });
 
-    // Bottom border
+    // Bottom divider
     stroke('#e0e4e8');
-    doc.moveTo(tableXStart, curY + ROW_H).lineTo(tableXStart + totalColW, curY + ROW_H).stroke();
+    doc.moveTo(tableXStart, curY + rh)
+       .lineTo(tableXStart + totalColW, curY + rh)
+       .stroke();
 
-    curY += ROW_H;
+    curY += rh;
   });
 
   addPageFooter();
