@@ -100,7 +100,7 @@ export default function Dashboard() {
   const [loaded, setLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(false);
-  const [selectedCamera, setSelectedCamera] = useState(null);
+  const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [floorFilter, setFloorFilter] = useState('all');
   const [listView, setListView] = useState(false);
 
@@ -141,6 +141,7 @@ export default function Dashboard() {
     return [...list].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
   }, [cameras, floorFilter]);
 
+  const selectedCamera = selectedCameraId ? cameras.find(c => c.id === selectedCameraId) || null : null;
   const accent = stats.pct===100?'#00c853':stats.pct>=50?'#00b4ff':'#ffab00';
 
   return (
@@ -151,7 +152,7 @@ export default function Dashboard() {
         <style>{`* { margin:0;padding:0;box-sizing:border-box; } body { background:#f0f2f5; font-family:Barlow,sans-serif; }`}</style>
       </Head>
 
-      <CameraModal camera={selectedCamera} onClose={()=>setSelectedCamera(null)}/>
+      <CameraModal camera={selectedCamera} onClose={()=>setSelectedCameraId(null)}/>
 
       {/* Header */}
       <div style={{ background:'#0d1b4b', padding:'22px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
@@ -270,7 +271,7 @@ export default function Dashboard() {
             {filteredCameras.map(cam=>{
               const st=statusOf(cam);
               return (
-                <div key={cam.id} onClick={()=>setSelectedCamera(cam)}
+                <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
                   style={{ border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, borderRadius:10, padding:'12px 14px', cursor:'pointer', background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa', transition:'transform 0.1s, box-shadow 0.1s' }}
                   onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)';}}
                   onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';}}>
