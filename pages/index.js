@@ -136,7 +136,7 @@ function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
           )}
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display:'none' }} />
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{ display:'none' }} />
     </div>
   );
 }
@@ -152,6 +152,11 @@ export default function Tracker() {
   const [toast, setToast] = useState(null);
   const [csvModal, setCsvModal] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkCount, setBulkCount] = useState('5');
+  const [bulkFloor, setBulkFloor] = useState('');
+  const [bulkSwitch, setBulkSwitch] = useState('');
+  const [bulkAdding, setBulkAdding] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -164,6 +169,29 @@ export default function Tracker() {
     const cam = await res.json();
     setCameras(p => [...p, cam]);
     setEditing(cam.id);
+  };
+
+  const bulkAddCameras = async () => {
+    const count = parseInt(bulkCount, 10);
+    if (!count || count < 1 || count > 100) return;
+    setBulkAdding(true);
+    const created = [];
+    for (let i = 0; i < count; i++) {
+      const res = await fetch('/api/cameras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ floor: bulkFloor, switchName: bulkSwitch }),
+      });
+      const cam = await res.json();
+      created.push(cam);
+    }
+    setCameras(p => [...p, ...created]);
+    setBulkAdding(false);
+    setBulkModal(false);
+    setBulkFloor('');
+    setBulkSwitch('');
+    setBulkCount('5');
+    showToast(`${count} cameras added`);
   };
 
   // updateLocalOnly: update React state only, used after photo uploads (DB already updated by upload API)
@@ -223,6 +251,57 @@ export default function Tracker() {
         <title>Verkada Deployment Tracker</title>
         <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@700;900&display=swap" rel="stylesheet"/>
       </Head>
+
+      {/* Bulk Add Modal */}
+      {bulkModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:'#111116', border:'1px solid #2a2a35', borderRadius:8, width:'100%', maxWidth:400, padding:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:4 }}>BULK ADD CAMERAS</div>
+            <div style={{ fontSize:11, color:'#555', marginBottom:20 }}>Creates multiple blank camera entries at once. You can fill in the remaining details after.</div>
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>NUMBER OF CAMERAS</label>
+              <input
+                type="number" min="1" max="100"
+                value={bulkCount}
+                onChange={e => setBulkCount(e.target.value)}
+                style={{ ...S.input, fontSize:18, fontWeight:700, textAlign:'center', padding:'10px' }}
+                autoFocus
+              />
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>FLOOR (optional)</label>
+              <select value={bulkFloor} onChange={e => setBulkFloor(e.target.value)} style={{ ...S.input }}>
+                <option value="">— leave blank —</option>
+                {FLOORS.map(f => <option key={f} value={f}>{f === 'Exterior' ? 'Exterior' : `Floor ${f}`}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom:24 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>SWITCH NAME (optional)</label>
+              <input
+                type="text"
+                value={bulkSwitch}
+                onChange={e => setBulkSwitch(e.target.value)}
+                placeholder="e.g. IDF-3A"
+                style={S.input}
+              />
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                onClick={bulkAddCameras}
+                disabled={bulkAdding || !bulkCount || parseInt(bulkCount) < 1}
+                style={{ ...S.btn('#00ff88', '#000', bulkAdding || !bulkCount || parseInt(bulkCount) < 1), flex:1, padding:'10px', fontSize:13 }}
+              >
+                {bulkAdding ? `ADDING ${bulkCount} CAMERAS...` : `+ ADD ${bulkCount || '?'} CAMERAS`}
+              </button>
+              <button onClick={() => { setBulkModal(false); setBulkFloor(''); setBulkSwitch(''); setBulkCount('5'); }} style={S.btn('#1e1e24', '#aaa', false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CSV Modal */}
       {csvModal && (
@@ -297,6 +376,7 @@ export default function Tracker() {
                 </select>
                 <span style={{ marginLeft:'auto', fontSize:11, color:'#555' }}>{visible.length} shown</span>
                 <button onClick={addCamera} style={S.btn('#00ff88','#000',false)}>+ ADD CAMERA</button>
+                <button onClick={() => setBulkModal(true)} style={S.btn('#003a1a','#00ff88',false)}>+ BULK ADD</button>
                 <button onClick={exportCSV} style={S.btn('#0d2a1a','#00ff88',false)}>⬇ EXPORT CSV</button>
               </div>
 
