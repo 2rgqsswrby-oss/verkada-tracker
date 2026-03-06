@@ -21,30 +21,80 @@ const S = {
 
 function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState('');
   const [preview, setPreview] = useState(currentUrl || null);
+  const [error, setError] = useState('');
   const inputRef = useRef();
 
   useEffect(() => { setPreview(currentUrl || null); }, [currentUrl]);
 
+  // Compress + resize image on canvas before upload.
+  // Mobile camera shots can be 8-15MB; this brings them under 500KB
+  // which safely clears Vercel's 4.5MB request body limit.
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 1600; // max dimension px
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else                { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      // Always output JPEG for photos — smaller than PNG for camera shots
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Image load failed')); };
+    img.src = objectUrl;
+  });
+
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploading(true);
+    // Reset input immediately ONLY after capturing the file reference — safe on all browsers
+    const inputEl = e.target;
 
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(',')[1];
+    setUploading(true);
+    setError('');
+    setProgress('Compressing…');
+
+    try {
+      const { base64, mimeType } = await compressImage(file);
+      setProgress('Uploading…');
+
       const res = await fetch('/api/cameras/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photoData: base64, mimeType: file.type, photoType, id: cameraId }),
+        body: JSON.stringify({ photoData: base64, mimeType, photoType, id: cameraId }),
       });
+
+      // Clear input only after fetch completes to avoid mobile file ref issues
+      inputEl.value = '';
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+
       const data = await res.json();
-      if (data.url) { setPreview(data.url); onUploaded(data.url); }
+      if (!data.url) throw new Error('No URL returned from server');
+
+      setPreview(data.url);
+      onUploaded(data.url);
+    } catch (err) {
+      setError(err.message || 'Upload failed — please try again');
+      inputEl.value = '';
+    } finally {
       setUploading(false);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+      setProgress('');
+    }
   };
 
   return (
@@ -64,20 +114,29 @@ function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
           </div>
         </div>
       ) : (
-        <div onClick={() => inputRef.current.click()}
-          style={{ border:'1px dashed #2a2a35', borderRadius:6, padding:'20px 12px', textAlign:'center', cursor:'pointer', background:'#0f0f12' }}>
+        <div onClick={() => !uploading && inputRef.current.click()}
+          style={{ border:`1px dashed ${error ? '#ff5252' : '#2a2a35'}`, borderRadius:6, padding:'20px 12px', textAlign:'center', cursor:uploading?'default':'pointer', background:'#0f0f12' }}>
           {uploading ? (
-            <div style={{ color:'#555', fontSize:11 }}>UPLOADING...</div>
+            <div style={{ color:'#00ff88', fontSize:11 }}>
+              <div style={{ marginBottom:6 }}>⏳</div>
+              {progress}
+            </div>
+          ) : error ? (
+            <>
+              <div style={{ fontSize:18, marginBottom:6 }}>⚠️</div>
+              <div style={{ fontSize:11, color:'#ff5252', marginBottom:4 }}>{error}</div>
+              <div style={{ fontSize:10, color:'#555' }}>Tap to try again</div>
+            </>
           ) : (
             <>
               <div style={{ fontSize:20, marginBottom:6 }}>📷</div>
-              <div style={{ fontSize:11, color:'#555' }}>Click to upload photo</div>
-              <div style={{ fontSize:10, color:'#333', marginTop:3 }}>JPG or PNG</div>
+              <div style={{ fontSize:11, color:'#555' }}>Tap to upload or take photo</div>
+              <div style={{ fontSize:10, color:'#333', marginTop:3 }}>Auto-compressed for fast upload</div>
             </>
           )}
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{ display:'none' }} />
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display:'none' }} />
     </div>
   );
 }
