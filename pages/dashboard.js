@@ -102,7 +102,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(false);
   const [selectedCameraId, setSelectedCameraId] = useState(null);
-  const [floorFilter, setFloorFilter] = useState('all');
+  const [expandedFloor, setExpandedFloor] = useState(null);
   const [listView, setListView] = useState(false);
 
   const load = () => {
@@ -136,11 +136,6 @@ export default function Dashboard() {
       const ai=FLOORS_ORDER.indexOf(a[0]),bi=FLOORS_ORDER.indexOf(b[0]);
       return (ai===-1?999:ai)-(bi===-1?999:bi);
     }), [stats.byFloor]);
-
-  const filteredCameras = useMemo(()=>{
-    let list = floorFilter==='all'?cameras:cameras.filter(c=>c.floor===floorFilter);
-    return [...list].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  }, [cameras, floorFilter]);
 
   const selectedCamera = selectedCameraId ? cameras.find(c => c.id === selectedCameraId) || null : null;
   const accent = stats.pct===100?'#00c853':stats.pct>=50?'#00b4ff':'#ffab00';
@@ -214,22 +209,65 @@ export default function Dashboard() {
         <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:20, marginBottom:20 }}>
           {/* Floor breakdown */}
           <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8, marginBottom:16 }}>Progress by Floor</div>
+            <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8, marginBottom:16 }}>Progress by Floor — click to expand</div>
             {floorsSorted.length===0 ? <div style={{ color:'#cfd8dc', fontSize:14, textAlign:'center', padding:28 }}>No floor data yet</div>
             : floorsSorted.map(([floor,{total,done}])=>{
               const p=Math.round(done/total*100);
+              const isOpen = expandedFloor === floor;
+              const floorCams = [...cameras.filter(c=>c.floor===floor)].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
               return (
-                <div key={floor} style={{ marginBottom:13 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                    <span style={{ fontSize:13, fontWeight:700, color:'#37474f' }}>{floor==='Exterior'?'Exterior':`Floor ${floor}`}</span>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:12, color:'#90a4ae', fontWeight:600 }}>{done}/{total}</span>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:p===100?'#e8f5e9':p>0?'#fff8e1':'#fafafa', color:p===100?'#2e7d32':p>0?'#f57f17':'#b0bec5' }}>{p}%</span>
+                <div key={floor} style={{ marginBottom: isOpen ? 18 : 13 }}>
+                  <div
+                    onClick={() => setExpandedFloor(isOpen ? null : floor)}
+                    style={{ cursor:'pointer', padding:'6px 8px', margin:'-6px -8px', borderRadius:8, transition:'background 0.15s' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#f5f7fa'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <span style={{ fontSize:12, color:'#90a4ae', transition:'transform 0.2s', display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                        <span style={{ fontSize:13, fontWeight:700, color:'#37474f' }}>{floor==='Exterior'?'Exterior':`Floor ${floor}`}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{ fontSize:12, color:'#90a4ae', fontWeight:600 }}>{done}/{total}</span>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20, background:p===100?'#e8f5e9':p>0?'#fff8e1':'#fafafa', color:p===100?'#2e7d32':p>0?'#f57f17':'#b0bec5' }}>{p}%</span>
+                      </div>
+                    </div>
+                    <div style={{ height:7, background:'#f0f2f5', borderRadius:4, overflow:'hidden' }}>
+                      <div style={{ height:'100%', borderRadius:4, background:p===100?'#00c853':p>0?'#00b4ff':'#e0e0e0', width:`${p}%`, transition:'width 0.8s' }}/>
                     </div>
                   </div>
-                  <div style={{ height:7, background:'#f0f2f5', borderRadius:4, overflow:'hidden' }}>
-                    <div style={{ height:'100%', borderRadius:4, background:p===100?'#00c853':p>0?'#00b4ff':'#e0e0e0', width:`${p}%`, transition:'width 0.8s' }}/>
-                  </div>
+                  {isOpen && (
+                    <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #f0f2f5' }}>
+                      {floorCams.length === 0
+                        ? <div style={{ color:'#cfd8dc', fontSize:13, textAlign:'center', padding:12 }}>No cameras logged for this floor yet</div>
+                        : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:8 }}>
+                          {floorCams.map(cam => {
+                            const st = statusOf(cam);
+                            return (
+                              <div key={cam.id} onClick={e=>{e.stopPropagation();setSelectedCameraId(cam.id);}}
+                                style={{ border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, borderRadius:10, padding:'10px 12px', cursor:'pointer', background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa' }}
+                                onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 14px rgba(0,0,0,0.09)';}}
+                                onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';}}>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:5 }}>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#37474f', lineHeight:1.3 }}>{cam.name||'Unnamed'}</div>
+                                  <span style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:8, background:st==='done'?'#00c853':st==='in-progress'?'#ffab00':'#e0e0e0', color:st==='done'||st==='in-progress'?'#000':'#90a4ae', flexShrink:0, marginLeft:5 }}>
+                                    {st==='done'?'✓':st==='in-progress'?'…':'—'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.model||'No model'}</div>
+                                {cam.serialNumber && <div style={{ fontSize:10, color:'#b0bec5', fontFamily:'monospace', marginTop:2 }}>{cam.serialNumber}</div>}
+                                <div style={{ display:'flex', gap:5, marginTop:7 }}>
+                                  <span style={{ fontSize:10, padding:'2px 5px', borderRadius:4, background:cam.photoInstallUrl?'#e8f5e9':'#fafafa', color:cam.photoInstallUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>📷{cam.photoInstallUrl?'✓':'—'}</span>
+                                  <span style={{ fontSize:10, padding:'2px 5px', borderRadius:4, background:cam.screenshotViewUrl?'#e8f5e9':'#fafafa', color:cam.screenshotViewUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>🖥{cam.screenshotViewUrl?'✓':'—'}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      }
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -251,48 +289,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Camera List */}
-        <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>
-              Camera List — click any camera to view photos
-            </div>
-            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              <select value={floorFilter} onChange={e=>setFloorFilter(e.target.value)}
-                style={{ background:'#f8f9fa', border:'1px solid #e0e0e0', color:'#37474f', padding:'6px 10px', borderRadius:6, fontSize:12, cursor:'pointer' }}>
-                <option value="all">All Floors</option>
-                {FLOORS_ORDER.map(f=><option key={f} value={f}>{f==='Exterior'?'Exterior':`Floor ${f}`}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px,1fr))', gap:10 }}>
-            {filteredCameras.length===0 && <div style={{ color:'#cfd8dc', fontSize:14, gridColumn:'1/-1', textAlign:'center', padding:32 }}>No cameras logged yet</div>}
-            {filteredCameras.map(cam=>{
-              const st=statusOf(cam);
-              return (
-                <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
-                  style={{ border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, borderRadius:10, padding:'12px 14px', cursor:'pointer', background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa', transition:'transform 0.1s, box-shadow 0.1s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.1)';}}
-                  onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='';}}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:'#37474f' }}>{cam.name||'Unnamed'}</div>
-                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:10, background:st==='done'?'#00c853':st==='in-progress'?'#ffab00':'#e0e0e0', color:st==='done'||st==='in-progress'?'#000':'#90a4ae', flexShrink:0, marginLeft:6 }}>
-                      {st==='done'?'✓ DONE':st==='in-progress'?'IN PROG':'PENDING'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.floor?`${cam.floor==='Exterior'?'Exterior':`Floor ${cam.floor}`}`:'No floor'}</div>
-                  <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.model||'No model'}</div>
-                  {cam.serialNumber && <div style={{ fontSize:10, color:'#b0bec5', fontFamily:'monospace' }}>{cam.serialNumber}</div>}
-                  <div style={{ display:'flex', gap:6, marginTop:8 }}>
-                    <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:cam.photoInstallUrl?'#e8f5e9':'#fafafa', color:cam.photoInstallUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>📷 {cam.photoInstallUrl?'✓':'—'}</span>
-                    <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background:cam.screenshotViewUrl?'#e8f5e9':'#fafafa', color:cam.screenshotViewUrl?'#2e7d32':'#bdbdbd', fontWeight:600 }}>🖥️ {cam.screenshotViewUrl?'✓':'—'}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       <div style={{ padding:'16px 32px', borderTop:'1px solid #e0e4e8', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
