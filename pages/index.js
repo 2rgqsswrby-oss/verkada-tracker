@@ -296,7 +296,15 @@ export default function Tracker() {
     if (filterStatus === 'pending') list = list.filter(c => statusOf(c)==='PENDING');
     if (filterStatus === 'in-progress') list = list.filter(c => statusOf(c)==='IN PROG');
     const floorIdx = f => FLOORS.indexOf(f) === -1 ? 999 : FLOORS.indexOf(f);
-    return [...list].sort((a,b) => sortBy==='floor'?(floorIdx(a.floor||'')-floorIdx(b.floor||'')):sortBy==='status'?statusOf(a).localeCompare(statusOf(b)):(a.name||'').localeCompare(b.name||''));
+    return [...list].sort((a,b) => {
+      if (sortBy==='floor')  return floorIdx(a.floor||'')-floorIdx(b.floor||'');
+      if (sortBy==='status') return statusOf(a).localeCompare(statusOf(b));
+      if (sortBy==='model')  return (a.model||'').localeCompare(b.model||'');
+      if (sortBy==='ip')     return (a.ip||'').localeCompare(b.ip||'', undefined, {numeric:true});
+      if (sortBy==='switch') return (a.switchName||'').localeCompare(b.switchName||'');
+      if (sortBy==='port')   return (a.switchPort||'').localeCompare(b.switchPort||'', undefined, {numeric:true});
+      return (a.name||'').localeCompare(b.name||'');
+    });
   }, [cameras, search, filterFloor, filterStatus, sortBy]);
 
   const done = cameras.filter(isComplete).length;
@@ -491,6 +499,10 @@ export default function Tracker() {
                   <option value="name">Sort: Name</option>
                   <option value="floor">Sort: Floor</option>
                   <option value="status">Sort: Status</option>
+                  <option value="model">Sort: Model</option>
+                  <option value="ip">Sort: IP</option>
+                  <option value="switch">Sort: Switch</option>
+                  <option value="port">Sort: Port</option>
                 </select>
                 <span style={{ marginLeft:'auto', fontSize:11, color:'#555' }}>{visible.length} shown</span>
                 {selected.size > 0 ? (
