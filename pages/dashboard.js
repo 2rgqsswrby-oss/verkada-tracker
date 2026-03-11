@@ -275,7 +275,10 @@ export default function Dashboard() {
 
           {/* Models */}
           <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8, marginBottom:16 }}>Camera Models</div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Camera Models</div>
+              <div style={{ fontSize:11, color:'#b0bec5', fontWeight:600 }}>{cameras.length} total</div>
+            </div>
             {Object.keys(stats.byModel).length===0 ? <div style={{ color:'#cfd8dc', fontSize:14 }}>No model data yet</div>
             : Object.entries(stats.byModel).sort((a,b)=>b[1]-a[1]).map(([model,count])=>(
               <div key={model} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
