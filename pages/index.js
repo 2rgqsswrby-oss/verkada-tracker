@@ -157,6 +157,10 @@ export default function Tracker() {
   const [bulkFloor, setBulkFloor] = useState('');
   const [bulkSwitch, setBulkSwitch] = useState('');
   const [bulkAdding, setBulkAdding] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [modelEditModal, setModelEditModal] = useState(false);
+  const [bulkModel, setBulkModel] = useState('');
+  const [applyingModel, setApplyingModel] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -192,6 +196,37 @@ export default function Tracker() {
     setBulkSwitch('');
     setBulkCount('5');
     showToast(`${count} cameras added`);
+  };
+
+  const toggleSelect = (id, e) => {
+    e.stopPropagation();
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelected(prev => prev.size === visible.length ? new Set() : new Set(visible.map(c => c.id)));
+  };
+
+  const applyBulkModel = async () => {
+    if (!bulkModel || selected.size === 0) return;
+    setApplyingModel(true);
+    const ids = [...selected];
+    await Promise.all(ids.map(id => {
+      const cam = cameras.find(c => c.id === id);
+      if (!cam) return Promise.resolve();
+      const updated = { ...cam, model: bulkModel };
+      setCameras(prev => prev.map(c => c.id === id ? updated : c));
+      return fetch(`/api/cameras/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updated) });
+    }));
+    setApplyingModel(false);
+    setModelEditModal(false);
+    setSelected(new Set());
+    setBulkModel('');
+    showToast(`Model updated on ${ids.length} camera${ids.length !== 1 ? 's' : ''}`);
   };
 
   // updateLocalOnly: update React state only, used after photo uploads (DB already updated by upload API)
@@ -303,6 +338,33 @@ export default function Tracker() {
         </div>
       )}
 
+      {/* Bulk Model Edit Modal */}
+      {modelEditModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:'#111116', border:'1px solid #2a2a35', borderRadius:8, width:'100%', maxWidth:400, padding:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:4 }}>EDIT MODEL — {selected.size} CAMERA{selected.size !== 1 ? 'S' : ''}</div>
+            <div style={{ fontSize:11, color:'#555', marginBottom:20 }}>Choose a model to apply to all selected cameras.</div>
+            <div style={{ marginBottom:24 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>CAMERA MODEL</label>
+              <select value={bulkModel} onChange={e => setBulkModel(e.target.value)} style={{ ...S.input, fontSize:14 }} autoFocus>
+                <option value="">— select model —</option>
+                {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                onClick={applyBulkModel}
+                disabled={applyingModel || !bulkModel}
+                style={{ ...S.btn('#00ff88', '#000', applyingModel || !bulkModel), flex:1, padding:'10px', fontSize:13 }}
+              >
+                {applyingModel ? 'APPLYING...' : `APPLY TO ${selected.size} CAMERA${selected.size !== 1 ? 'S' : ''}`}
+              </button>
+              <button onClick={() => { setModelEditModal(false); setBulkModel(''); }} style={S.btn('#1e1e24', '#aaa', false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CSV Modal */}
       {csvModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
@@ -375,14 +437,32 @@ export default function Tracker() {
                   <option value="status">Sort: Status</option>
                 </select>
                 <span style={{ marginLeft:'auto', fontSize:11, color:'#555' }}>{visible.length} shown</span>
-                <button onClick={addCamera} style={S.btn('#00ff88','#000',false)}>+ ADD CAMERA</button>
-                <button onClick={() => setBulkModal(true)} style={S.btn('#003a1a','#00ff88',false)}>+ BULK ADD</button>
-                <button onClick={exportCSV} style={S.btn('#0d2a1a','#00ff88',false)}>⬇ EXPORT CSV</button>
+                {selected.size > 0 ? (
+                  <>
+                    <span style={{ fontSize:11, color:'#00ff88', fontWeight:700 }}>{selected.size} selected</span>
+                    <button onClick={() => setModelEditModal(true)} style={S.btn('#00b4ff','#000',false)}>✏ EDIT MODEL</button>
+                    <button onClick={() => setSelected(new Set())} style={S.btn('#1e1e24','#aaa',false)}>✕ CLEAR</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={addCamera} style={S.btn('#00ff88','#000',false)}>+ ADD CAMERA</button>
+                    <button onClick={() => setBulkModal(true)} style={S.btn('#003a1a','#00ff88',false)}>+ BULK ADD</button>
+                    <button onClick={exportCSV} style={S.btn('#0d2a1a','#00ff88',false)}>⬇ EXPORT CSV</button>
+                  </>
+                )}
               </div>
 
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr style={{ background:'#111116', borderBottom:'1px solid #2a2a35' }}>
+                    <th style={{ padding:'7px 10px', width:32 }}>
+                      <input type="checkbox"
+                        checked={visible.length > 0 && selected.size === visible.length}
+                        ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < visible.length; }}
+                        onChange={toggleSelectAll}
+                        style={{ cursor:'pointer', accentColor:'#00ff88', width:14, height:14 }}
+                      />
+                    </th>
                     {['Status','Camera Name','Floor','Model','Serial #','IP Address','Switch','Port','Install Photo','Cam View','Notes',''].map(h=>(
                       <th key={h} style={{ padding:'7px 10px', textAlign:'left', color:'#555', fontSize:10, whiteSpace:'nowrap' }}>{h}</th>
                     ))}
@@ -390,7 +470,7 @@ export default function Tracker() {
                 </thead>
                 <tbody>
                   {visible.length === 0 && (
-                    <tr><td colSpan={11} style={{ padding:40, textAlign:'center', color:'#333' }}>
+                    <tr><td colSpan={13} style={{ padding:40, textAlign:'center', color:'#333' }}>
                       {cameras.length === 0 ? 'No cameras yet — click + ADD CAMERA to get started' : 'No cameras match filters'}
                     </td></tr>
                   )}
@@ -400,7 +480,11 @@ export default function Tracker() {
                     const tc = st==='PENDING'?'#aaa':'#000';
                     return (
                       <tr key={cam.id} onClick={()=>setEditing(editing===cam.id?null:cam.id)}
-                        style={{ background:editing===cam.id?'#141420':i%2===0?'#0d0d0f':'#0f0f12', borderBottom:'1px solid #1a1a1f', cursor:'pointer', borderLeft:editing===cam.id?'3px solid #00ff88':'3px solid transparent' }}>
+                        style={{ background:selected.has(cam.id)?'#0d1f0d':editing===cam.id?'#141420':i%2===0?'#0d0d0f':'#0f0f12', borderBottom:'1px solid #1a1a1f', cursor:'pointer', borderLeft:selected.has(cam.id)?'3px solid #00b4ff':editing===cam.id?'3px solid #00ff88':'3px solid transparent' }}>
+                        <td style={{ padding:'7px 10px', width:32 }} onClick={e=>e.stopPropagation()}>
+                          <input type="checkbox" checked={selected.has(cam.id)} onChange={e=>toggleSelect(cam.id,e)}
+                            style={{ cursor:'pointer', accentColor:'#00b4ff', width:14, height:14 }} />
+                        </td>
                         <td style={{ padding:'7px 10px' }}><span style={{ display:'inline-block', padding:'2px 8px', borderRadius:3, fontSize:10, fontWeight:700, background:bg, color:tc }}>{st}</span></td>
                         <td style={{ padding:'7px 10px', color:cam.name?'#fff':'#333' }}>{cam.name||'—'}</td>
                         <td style={{ padding:'7px 10px', color:'#aaa' }}>{cam.floor?`FL ${cam.floor}`:'—'}</td>
