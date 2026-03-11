@@ -161,6 +161,9 @@ export default function Tracker() {
   const [modelEditModal, setModelEditModal] = useState(false);
   const [bulkModel, setBulkModel] = useState('');
   const [applyingModel, setApplyingModel] = useState(false);
+  const [bulkSwitch2, setBulkSwitch2] = useState('');
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -211,22 +214,42 @@ export default function Tracker() {
     setSelected(prev => prev.size === visible.length ? new Set() : new Set(visible.map(c => c.id)));
   };
 
-  const applyBulkModel = async () => {
-    if (!bulkModel || selected.size === 0) return;
+  const applyBulkEdit = async () => {
+    if ((!bulkModel && !bulkSwitch2) || selected.size === 0) return;
     setApplyingModel(true);
     const ids = [...selected];
     await Promise.all(ids.map(id => {
       const cam = cameras.find(c => c.id === id);
       if (!cam) return Promise.resolve();
-      const updated = { ...cam, model: bulkModel };
+      const updated = {
+        ...cam,
+        ...(bulkModel   ? { model:      bulkModel   } : {}),
+        ...(bulkSwitch2 ? { switchName: bulkSwitch2 } : {}),
+      };
       setCameras(prev => prev.map(c => c.id === id ? updated : c));
       return fetch(`/api/cameras/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(updated) });
     }));
+    const parts = [];
+    if (bulkModel)   parts.push('model');
+    if (bulkSwitch2) parts.push('switch');
     setApplyingModel(false);
     setModelEditModal(false);
     setSelected(new Set());
     setBulkModel('');
-    showToast(`Model updated on ${ids.length} camera${ids.length !== 1 ? 's' : ''}`);
+    setBulkSwitch2('');
+    showToast(`${parts.join(' & ')} updated on ${ids.length} camera${ids.length !== 1 ? 's' : ''}`);
+  };
+
+  const deleteSelected = async () => {
+    setDeletingSelected(true);
+    const ids = [...selected];
+    await Promise.all(ids.map(id => fetch(`/api/cameras/${id}`, { method:'DELETE' })));
+    setCameras(prev => prev.filter(c => !selected.has(c.id)));
+    if (ids.includes(editing)) setEditing(null);
+    setSelected(new Set());
+    setDeleteConfirmModal(false);
+    setDeletingSelected(false);
+    showToast(`${ids.length} camera${ids.length !== 1 ? 's' : ''} deleted`);
   };
 
   // updateLocalOnly: update React state only, used after photo uploads (DB already updated by upload API)
@@ -342,24 +365,57 @@ export default function Tracker() {
       {modelEditModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
           <div style={{ background:'#111116', border:'1px solid #2a2a35', borderRadius:8, width:'100%', maxWidth:400, padding:28 }}>
-            <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:4 }}>EDIT MODEL — {selected.size} CAMERA{selected.size !== 1 ? 'S' : ''}</div>
-            <div style={{ fontSize:11, color:'#555', marginBottom:20 }}>Choose a model to apply to all selected cameras.</div>
-            <div style={{ marginBottom:24 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:4 }}>BULK EDIT — {selected.size} CAMERA{selected.size !== 1 ? 'S' : ''}</div>
+            <div style={{ fontSize:11, color:'#555', marginBottom:20 }}>Fill in any fields to update. Leave blank to keep existing values.</div>
+            <div style={{ marginBottom:14 }}>
               <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>CAMERA MODEL</label>
-              <select value={bulkModel} onChange={e => setBulkModel(e.target.value)} style={{ ...S.input, fontSize:14 }} autoFocus>
-                <option value="">— select model —</option>
+              <select value={bulkModel} onChange={e => setBulkModel(e.target.value)} style={{ ...S.input }} autoFocus>
+                <option value="">— no change —</option>
                 {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
+            <div style={{ marginBottom:24 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>SWITCH NAME</label>
+              <input
+                type="text"
+                value={bulkSwitch2}
+                onChange={e => setBulkSwitch2(e.target.value)}
+                placeholder="e.g. IDF-3A  (leave blank for no change)"
+                style={S.input}
+              />
+            </div>
             <div style={{ display:'flex', gap:10 }}>
               <button
-                onClick={applyBulkModel}
-                disabled={applyingModel || !bulkModel}
-                style={{ ...S.btn('#00ff88', '#000', applyingModel || !bulkModel), flex:1, padding:'10px', fontSize:13 }}
+                onClick={applyBulkEdit}
+                disabled={applyingModel || (!bulkModel && !bulkSwitch2)}
+                style={{ ...S.btn('#00ff88', '#000', applyingModel || (!bulkModel && !bulkSwitch2)), flex:1, padding:'10px', fontSize:13 }}
               >
                 {applyingModel ? 'APPLYING...' : `APPLY TO ${selected.size} CAMERA${selected.size !== 1 ? 'S' : ''}`}
               </button>
-              <button onClick={() => { setModelEditModal(false); setBulkModel(''); }} style={S.btn('#1e1e24', '#aaa', false)}>CANCEL</button>
+              <button onClick={() => { setModelEditModal(false); setBulkModel(''); setBulkSwitch2(''); }} style={S.btn('#1e1e24', '#aaa', false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirmModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:'#111116', border:'1px solid #3a1a1a', borderRadius:8, width:'100%', maxWidth:400, padding:28 }}>
+            <div style={{ fontSize:22, marginBottom:12, textAlign:'center' }}>⚠️</div>
+            <div style={{ fontSize:14, fontWeight:700, color:'#ff5252', marginBottom:8, textAlign:'center' }}>DELETE {selected.size} CAMERA{selected.size !== 1 ? 'S' : ''}?</div>
+            <div style={{ fontSize:12, color:'#888', marginBottom:24, textAlign:'center', lineHeight:1.6 }}>
+              This will permanently delete {selected.size} camera record{selected.size !== 1 ? 's' : ''} and cannot be undone.
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                onClick={deleteSelected}
+                disabled={deletingSelected}
+                style={{ ...S.btn('#ff3d3d', '#fff', deletingSelected), flex:1, padding:'10px', fontSize:13 }}
+              >
+                {deletingSelected ? 'DELETING...' : `YES, DELETE ${selected.size} CAMERA${selected.size !== 1 ? 'S' : ''}`}
+              </button>
+              <button onClick={() => setDeleteConfirmModal(false)} disabled={deletingSelected} style={S.btn('#1e1e24', '#aaa', deletingSelected)}>CANCEL</button>
             </div>
           </div>
         </div>
@@ -440,7 +496,8 @@ export default function Tracker() {
                 {selected.size > 0 ? (
                   <>
                     <span style={{ fontSize:11, color:'#00ff88', fontWeight:700 }}>{selected.size} selected</span>
-                    <button onClick={() => setModelEditModal(true)} style={S.btn('#00b4ff','#000',false)}>✏ EDIT MODEL</button>
+                    <button onClick={() => setModelEditModal(true)} style={S.btn('#00b4ff','#000',false)}>✏ BULK EDIT</button>
+                    <button onClick={() => setDeleteConfirmModal(true)} style={S.btn('#3a0a0a','#ff5252',false)}>🗑 DELETE</button>
                     <button onClick={() => setSelected(new Set())} style={S.btn('#1e1e24','#aaa',false)}>✕ CLEAR</button>
                   </>
                 ) : (
