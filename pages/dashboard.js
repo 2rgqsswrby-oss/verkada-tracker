@@ -103,7 +103,10 @@ export default function Dashboard() {
   const [error, setError] = useState(false);
   const [selectedCameraId, setSelectedCameraId] = useState(null);
   const [expandedFloor, setExpandedFloor] = useState(null);
+  const [expandedModel, setExpandedModel] = useState(null);
   const [listView, setListView] = useState(false);
+  const [projectName, setProjectName] = useState('Camera Upgrade Project');
+  const [totalCameras, setTotalCameras] = useState(TOTAL);
 
   const load = () => {
     fetch('/api/cameras')
@@ -112,11 +115,20 @@ export default function Dashboard() {
       .catch(()=>{setError(true);setLoaded(true);});
   };
 
-  useEffect(() => { load(); const t=setInterval(load,10000); return()=>clearInterval(t); }, []);
+  useEffect(() => {
+    // Load settings once on mount
+    fetch('/api/settings').then(r=>r.json()).then(s=>{
+      if (s.projectName)  setProjectName(s.projectName);
+      if (s.totalCameras) setTotalCameras(s.totalCameras);
+    }).catch(()=>{});
+    load();
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, []);
 
   const stats = useMemo(() => {
     const done = cameras.filter(isComplete).length;
-    const pct = Math.round((done/TOTAL)*100);
+    const pct = Math.round((done/totalCameras)*100);
     const byFloor = {};
     cameras.forEach(c => {
       if (!c.floor) return;
@@ -127,9 +139,9 @@ export default function Dashboard() {
     const byModel={};
     cameras.forEach(c=>{if(c.model) byModel[c.model]=(byModel[c.model]||0)+1;});
     const inProgress = cameras.filter(c=>statusOf(c)==='in-progress').length;
-    const notStarted = Math.max(0, TOTAL-cameras.length) + cameras.filter(c=>statusOf(c)==='pending').length;
+    const notStarted = Math.max(0, totalCameras-cameras.length) + cameras.filter(c=>statusOf(c)==='pending').length;
     return {done,pct,byFloor,byModel,inProgress,notStarted};
-  }, [cameras]);
+  }, [cameras, totalCameras]);
 
   const floorsSorted = useMemo(()=>
     Object.entries(stats.byFloor).sort((a,b)=>{
@@ -143,7 +155,7 @@ export default function Dashboard() {
   return (
     <>
       <Head>
-        <title>Camera Upgrade Progress</title>
+        <title>{projectName}</title>
         <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@700;800;900&display=swap" rel="stylesheet"/>
         <style>{`* { margin:0;padding:0;box-sizing:border-box; } body { background:#f0f2f5; font-family:Barlow,sans-serif; }`}</style>
       </Head>
@@ -155,7 +167,7 @@ export default function Dashboard() {
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
           <div>
           <img src="https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg" alt="Verkada" style={{ height:30, display:'block', marginBottom:4 }} />
-            <div style={{ fontSize:20, fontWeight:800, color:'#fff' }}>Camera Upgrade Project</div>
+            <div style={{ fontSize:20, fontWeight:800, color:'#fff' }}>{projectName}</div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Verkada Security System Deployment · Live Progress</div>
           </div>
         </div>
@@ -179,7 +191,7 @@ export default function Dashboard() {
           <span style={{ fontSize:72, fontWeight:900, color:accent, lineHeight:1, fontFamily:'Barlow Condensed,sans-serif' }}>{loaded?stats.pct+'%':'—'}</span>
           <div style={{ paddingBottom:10 }}>
             <div style={{ fontSize:14, color:'rgba(255,255,255,0.5)', fontWeight:600 }}>overall completion</div>
-            <div style={{ fontSize:12, color:'rgba(255,255,255,0.3)' }}>{stats.done} of {TOTAL} cameras fully documented</div>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,0.3)' }}>{stats.done} of {totalCameras} cameras fully documented</div>
           </div>
         </div>
         <div style={{ height:10, background:'rgba(255,255,255,0.08)', borderRadius:10, overflow:'hidden' }}>
@@ -189,18 +201,17 @@ export default function Dashboard() {
 
       <div style={{ padding:'24px 32px' }}>
         {/* Stat cards row */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
           {[
-            {label:'Cameras Done',value:stats.done,sub:`of ${TOTAL} total`,color:'#00c853'},
+            {label:'Cameras Done',value:stats.done,sub:`of ${totalCameras} total`,color:'#00c853'},
             {label:'In Progress',value:stats.inProgress,sub:'partially documented',color:'#ffab00'},
-            {label:'Not Started',value:stats.notStarted,sub:'not yet logged',color:'#ff5252'},
           ].map(({label,value,sub,color})=>(
             <div key={label} style={{ background:'#fff', borderRadius:14, padding:20, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
               <div style={{ fontSize:10, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8, marginBottom:8 }}>{label}</div>
               <div style={{ fontSize:48, fontWeight:900, color, lineHeight:1, fontFamily:'Barlow Condensed,sans-serif' }}>{value}</div>
               <div style={{ fontSize:12, color:'#b0bec5', marginTop:5 }}>{sub}</div>
               <div style={{ marginTop:12, height:4, background:'#f0f2f5', borderRadius:2 }}>
-                <div style={{ height:'100%', background:color, borderRadius:2, width:`${Math.round(value/TOTAL*100)}%`, transition:'width 0.8s' }}/>
+                <div style={{ height:'100%', background:color, borderRadius:2, width:`${Math.round(value/totalCameras*100)}%`, transition:'width 0.8s' }}/>
               </div>
             </div>
           ))}
@@ -276,19 +287,60 @@ export default function Dashboard() {
           {/* Models */}
           <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Camera Models</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Camera Models — click to expand</div>
               <div style={{ fontSize:11, color:'#b0bec5', fontWeight:600 }}>{cameras.length} total</div>
             </div>
             {Object.keys(stats.byModel).length===0 ? <div style={{ color:'#cfd8dc', fontSize:14 }}>No model data yet</div>
-            : Object.entries(stats.byModel).sort((a,b)=>b[1]-a[1]).map(([model,count])=>(
-              <div key={model} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:'#3949ab' }}/>
-                  <span style={{ fontSize:14, fontWeight:700, color:'#283593' }}>{model}</span>
+            : Object.entries(stats.byModel).sort((a,b)=>b[1]-a[1]).map(([model,count])=>{
+              const isOpen = expandedModel === model;
+              const modelCams = [...cameras.filter(c=>c.model===model)].sort((a,b)=>{
+                const ai=FLOORS_ORDER.indexOf(a.floor||''),bi=FLOORS_ORDER.indexOf(b.floor||'');
+                return (ai===-1?999:ai)-(bi===-1?999:bi);
+              });
+              return (
+                <div key={model} style={{ marginBottom: isOpen ? 16 : 10 }}>
+                  <div
+                    onClick={() => setExpandedModel(isOpen ? null : model)}
+                    style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'5px 7px', margin:'-5px -7px', borderRadius:7, transition:'background 0.15s' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#f5f7fa'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  >
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:11, color:'#90a4ae', transition:'transform 0.2s', display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background:'#3949ab', flexShrink:0 }}/>
+                      <span style={{ fontSize:14, fontWeight:700, color:'#283593' }}>{model}</span>
+                    </div>
+                    <span style={{ fontSize:13, color:'#90a4ae', fontWeight:600 }}>{count} unit{count!==1?'s':''}</span>
+                  </div>
+                  {isOpen && (
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f0f2f5' }}>
+                      {modelCams.length===0
+                        ? <div style={{ color:'#cfd8dc', fontSize:13, padding:8 }}>No cameras for this model</div>
+                        : <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                          {modelCams.map(cam => {
+                            const st = statusOf(cam);
+                            return (
+                              <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
+                                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:8, border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa', cursor:'pointer' }}
+                                onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.08)';}}
+                                onMouseLeave={e=>{e.currentTarget.style.boxShadow='';}}>
+                                <div>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#37474f' }}>{cam.name||'Unnamed'}</div>
+                                  <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.floor ? (cam.floor==='Exterior'?'Exterior':`Floor ${cam.floor}`) : 'No floor'}</div>
+                                </div>
+                                <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:8, background:st==='done'?'#00c853':st==='in-progress'?'#ffab00':'#e0e0e0', color:st==='done'||st==='in-progress'?'#000':'#90a4ae' }}>
+                                  {st==='done'?'✓':st==='in-progress'?'…':'—'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      }
+                    </div>
+                  )}
                 </div>
-                <span style={{ fontSize:13, color:'#90a4ae', fontWeight:600 }}>{count} unit{count!==1?'s':''}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

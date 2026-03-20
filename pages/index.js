@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 
-const TOTAL = 211;
+// TOTAL and projectName are now stored in localStorage via settings modal
 const MODELS = ['CM42','CF83-E','CD63','CD63-E','CD43-E','CB52-E','CP52-E','CY53-E'];
 const FLOORS = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
 
@@ -19,7 +19,7 @@ const S = {
   btn: (bg, col, dis) => ({ background:dis?'#1a1a1f':bg, color:dis?'#444':col, border:'none', padding:'7px 14px', borderRadius:4, cursor:dis?'not-allowed':'pointer', fontWeight:700, fontSize:12, fontFamily:"'Share Tech Mono',monospace", opacity:dis?0.6:1 }),
 };
 
-function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
+function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded, onDeleted }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState('');
   const [preview, setPreview] = useState(currentUrl || null);
@@ -54,6 +54,26 @@ function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Image load failed')); };
     img.src = objectUrl;
   });
+
+  const deletePhoto = async () => {
+    setUploading(true);
+    setProgress('Removing…');
+    try {
+      const dbField = photoType === 'install' ? 'photo_install_url' : 'screenshot_view_url';
+      await fetch('/api/cameras/photo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: cameraId, photoType }),
+      });
+      setPreview(null);
+      if (onDeleted) onDeleted();
+    } catch(err) {
+      setError('Delete failed');
+    } finally {
+      setUploading(false);
+      setProgress('');
+    }
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -103,10 +123,11 @@ function PhotoUpload({ cameraId, photoType, currentUrl, label, onUploaded }) {
       {preview ? (
         <div style={{ position:'relative' }}>
           <img src={preview} alt={label} style={{ width:'100%', borderRadius:6, border:'1px solid #2a2a35', maxHeight:160, objectFit:'cover', display:'block' }} />
-          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0)', display:'flex', alignItems:'center', justifyContent:'center', borderRadius:6, opacity:0, transition:'opacity 0.15s' }}
+          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', gap:8, borderRadius:6, opacity:0, transition:'opacity 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.opacity=1}
             onMouseLeave={e => e.currentTarget.style.opacity=0}>
-            <button onClick={() => inputRef.current.click()} style={{ background:'rgba(0,0,0,0.75)', border:'1px solid #fff', color:'#fff', padding:'6px 14px', borderRadius:4, cursor:'pointer', fontSize:12, fontFamily:"'Share Tech Mono',monospace", fontWeight:700 }}>REPLACE</button>
+            <button onClick={() => inputRef.current.click()} style={{ background:'rgba(0,0,0,0.75)', border:'1px solid #fff', color:'#fff', padding:'6px 12px', borderRadius:4, cursor:'pointer', fontSize:11, fontFamily:"'Share Tech Mono',monospace", fontWeight:700 }}>REPLACE</button>
+            <button onClick={deletePhoto} style={{ background:'rgba(180,0,0,0.85)', border:'1px solid #ff5252', color:'#fff', padding:'6px 12px', borderRadius:4, cursor:'pointer', fontSize:11, fontFamily:"'Share Tech Mono',monospace", fontWeight:700 }}>DELETE</button>
           </div>
           <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ color:'#00ff88', fontSize:11 }}>✓</span>
@@ -164,11 +185,43 @@ export default function Tracker() {
   const [bulkSwitch2, setBulkSwitch2] = useState('');
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [settingsTotal, setSettingsTotal] = useState('211');
+  const [settingsName, setSettingsName] = useState('VERKADA DEPLOYMENT TRACKER');
+  const [total, setTotal] = useState(211);
+  const [projectName, setProjectName] = useState('VERKADA DEPLOYMENT TRACKER');
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
+  const saveSettings = async () => {
+    const n = parseInt(settingsTotal, 10);
+    if (!n || n < 1) return;
+    const name = settingsName.trim() || 'Camera Upgrade Project';
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectName: name, totalCameras: n }),
+    });
+    if (res.ok) {
+      setTotal(n);
+      setProjectName(name);
+      setSettingsModal(false);
+      showToast('Settings saved');
+    } else {
+      showToast('Failed to save settings');
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/cameras').then(r => r.json()).then(d => { setCameras(Array.isArray(d)?d:[]); setLoading(false); }).catch(() => setLoading(false));
+    Promise.all([
+      fetch('/api/cameras').then(r => r.json()),
+      fetch('/api/settings').then(r => r.json()),
+    ]).then(([cams, settings]) => {
+      setCameras(Array.isArray(cams) ? cams : []);
+      if (settings.totalCameras) { setTotal(settings.totalCameras); setSettingsTotal(String(settings.totalCameras)); }
+      if (settings.projectName)  { setProjectName(settings.projectName); setSettingsName(settings.projectName); }
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   const addCamera = async () => {
@@ -308,7 +361,7 @@ export default function Tracker() {
   }, [cameras, search, filterFloor, filterStatus, sortBy]);
 
   const done = cameras.filter(isComplete).length;
-  const pct = Math.round((done / TOTAL) * 100);
+  const pct = Math.round((done / total) * 100);
   const editCam = editing ? cameras.find(c => c.id === editing) : null;
 
   return (
@@ -406,6 +459,46 @@ export default function Tracker() {
         </div>
       )}
 
+      {/* Settings Modal */}
+      {settingsModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <div style={{ background:'#111116', border:'1px solid #2a2a35', borderRadius:8, width:'100%', maxWidth:400, padding:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:4 }}>⚙ PROJECT SETTINGS</div>
+            <div style={{ fontSize:11, color:'#555', marginBottom:20 }}>These settings are saved to this browser.</div>
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>PROJECT NAME</label>
+              <input
+                type="text"
+                value={settingsName}
+                onChange={e => setSettingsName(e.target.value)}
+                placeholder="e.g. VERKADA DEPLOYMENT TRACKER"
+                style={S.input}
+                autoFocus
+              />
+            </div>
+            <div style={{ marginBottom:24 }}>
+              <label style={{ display:'block', fontSize:10, color:'#555', marginBottom:4 }}>TOTAL CAMERA COUNT</label>
+              <input
+                type="number"
+                min="1"
+                value={settingsTotal}
+                onChange={e => setSettingsTotal(e.target.value)}
+                style={{ ...S.input, fontSize:18, fontWeight:700, textAlign:'center', padding:'10px' }}
+              />
+              <div style={{ fontSize:10, color:'#333', marginTop:4 }}>Used to calculate completion % and progress bar</div>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                onClick={saveSettings}
+                disabled={!settingsTotal || parseInt(settingsTotal) < 1}
+                style={{ ...S.btn('#00ff88', '#000', !settingsTotal || parseInt(settingsTotal) < 1), flex:1, padding:'10px', fontSize:13 }}
+              >SAVE SETTINGS</button>
+              <button onClick={() => setSettingsModal(false)} style={S.btn('#1e1e24', '#aaa', false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirm Modal */}
       {deleteConfirmModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
@@ -453,8 +546,8 @@ export default function Tracker() {
         <div style={{ background:'#0a0a0c', borderBottom:'2px solid #1e1e24', padding:'14px 22px', display:'flex', alignItems:'center', gap:14 }}>
           <div>
           <img src="https://cdn.verkada.com/image/upload/brand/verkada-logo-only-white.svg" alt="Verkada" style={{ height:28, display:'block', marginBottom:4 }} />
-            <div style={{ fontSize:18, fontWeight:900, fontFamily:'Barlow,sans-serif', color:'#fff' }}>VERKADA DEPLOYMENT TRACKER</div>
-            <div style={{ fontSize:10, color:'#555' }}>{cameras.length} / {TOTAL} cameras logged</div>
+            <div style={{ fontSize:18, fontWeight:900, fontFamily:'Barlow,sans-serif', color:'#fff' }}>{projectName}</div>
+            <div style={{ fontSize:10, color:'#555' }}>{cameras.length} / {total} cameras logged</div>
           </div>
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:14 }}>
             <div style={{ textAlign:'right' }}>
@@ -468,8 +561,9 @@ export default function Tracker() {
                   strokeDasharray={String(2*Math.PI*20)} strokeDashoffset={String(2*Math.PI*20*(1-pct/100))}
                   style={{ transition:'stroke-dashoffset 0.5s' }}/>
               </svg>
-              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700 }}>{done}/{TOTAL}</div>
+              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700 }}>{done}/{total}</div>
             </div>
+            <button onClick={() => setSettingsModal(true)} style={S.btn('#1e1e24','#aaa',false)}>⚙ SETTINGS</button>
             <button onClick={() => { document.cookie='tracker_auth=; Max-Age=0; Path=/'; window.location='/login?role=tracker'; }} style={S.btn('#1e1e24','#555',false)}>LOG OUT</button>
           </div>
         </div>
@@ -612,11 +706,13 @@ export default function Tracker() {
                     cameraId={editCam.id} photoType="install"
                     currentUrl={editCam.photoInstallUrl} label="📷 INSTALL PHOTO"
                     onUploaded={url => updateLocalOnly(editCam.id, { photoInstallUrl: url })}
+                    onDeleted={() => updateLocalOnly(editCam.id, { photoInstallUrl: '' })}
                   />
                   <PhotoUpload
                     cameraId={editCam.id} photoType="view"
                     currentUrl={editCam.screenshotViewUrl} label="🖥️ CAMERA VIEW SCREENSHOT"
                     onUploaded={url => updateLocalOnly(editCam.id, { screenshotViewUrl: url })}
+                    onDeleted={() => updateLocalOnly(editCam.id, { screenshotViewUrl: '' })}
                   />
                 </div>
 
