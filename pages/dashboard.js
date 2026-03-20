@@ -284,63 +284,100 @@ export default function Dashboard() {
             })}
           </div>
 
-          {/* Models */}
-          <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Camera Models — click to expand</div>
-              <div style={{ fontSize:11, color:'#b0bec5', fontWeight:600 }}>{cameras.length} total</div>
-            </div>
-            {Object.keys(stats.byModel).length===0 ? <div style={{ color:'#cfd8dc', fontSize:14 }}>No model data yet</div>
-            : Object.entries(stats.byModel).sort((a,b)=>b[1]-a[1]).map(([model,count])=>{
-              const isOpen = expandedModel === model;
-              const modelCams = [...cameras.filter(c=>c.model===model)].sort((a,b)=>{
-                const ai=FLOORS_ORDER.indexOf(a.floor||''),bi=FLOORS_ORDER.indexOf(b.floor||'');
-                return (ai===-1?999:ai)-(bi===-1?999:bi);
-              });
-              return (
-                <div key={model} style={{ marginBottom: isOpen ? 16 : 10 }}>
-                  <div
-                    onClick={() => setExpandedModel(isOpen ? null : model)}
-                    style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'5px 7px', margin:'-5px -7px', borderRadius:7, transition:'background 0.15s' }}
-                    onMouseEnter={e=>e.currentTarget.style.background='#f5f7fa'}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-                  >
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:11, color:'#90a4ae', transition:'transform 0.2s', display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
-                      <div style={{ width:8, height:8, borderRadius:'50%', background:'#3949ab', flexShrink:0 }}/>
-                      <span style={{ fontSize:14, fontWeight:700, color:'#283593' }}>{model}</span>
+          {/* Right column: Models + Notes stacked */}
+          <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+
+            {/* Models */}
+            <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Camera Models — click to expand</div>
+                <div style={{ fontSize:11, color:'#b0bec5', fontWeight:600 }}>{cameras.length} total</div>
+              </div>
+              {Object.keys(stats.byModel).length===0 ? <div style={{ color:'#cfd8dc', fontSize:14 }}>No model data yet</div>
+              : Object.entries(stats.byModel).sort((a,b)=>b[1]-a[1]).map(([model,count])=>{
+                const isOpen = expandedModel === model;
+                const modelCams = [...cameras.filter(c=>c.model===model)].sort((a,b)=>{
+                  const ai=FLOORS_ORDER.indexOf(a.floor||''),bi=FLOORS_ORDER.indexOf(b.floor||'');
+                  return (ai===-1?999:ai)-(bi===-1?999:bi);
+                });
+                return (
+                  <div key={model} style={{ marginBottom: isOpen ? 16 : 10 }}>
+                    <div
+                      onClick={() => setExpandedModel(isOpen ? null : model)}
+                      style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'5px 7px', margin:'-5px -7px', borderRadius:7, transition:'background 0.15s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f5f7fa'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                    >
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{ fontSize:11, color:'#90a4ae', transition:'transform 0.2s', display:'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:'#3949ab', flexShrink:0 }}/>
+                        <span style={{ fontSize:14, fontWeight:700, color:'#283593' }}>{model}</span>
+                      </div>
+                      <span style={{ fontSize:13, color:'#90a4ae', fontWeight:600 }}>{count} unit{count!==1?'s':''}</span>
                     </div>
-                    <span style={{ fontSize:13, color:'#90a4ae', fontWeight:600 }}>{count} unit{count!==1?'s':''}</span>
-                  </div>
-                  {isOpen && (
-                    <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f0f2f5' }}>
-                      {modelCams.length===0
-                        ? <div style={{ color:'#cfd8dc', fontSize:13, padding:8 }}>No cameras for this model</div>
-                        : <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                          {modelCams.map(cam => {
-                            const st = statusOf(cam);
-                            return (
-                              <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
-                                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:8, border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa', cursor:'pointer' }}
-                                onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.08)';}}
-                                onMouseLeave={e=>{e.currentTarget.style.boxShadow='';}}>
-                                <div>
-                                  <div style={{ fontSize:12, fontWeight:700, color:'#37474f' }}>{cam.name||'Unnamed'}</div>
-                                  <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.floor ? (cam.floor==='Exterior'?'Exterior':`Floor ${cam.floor}`) : 'No floor'}</div>
+                    {isOpen && (
+                      <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid #f0f2f5' }}>
+                        {modelCams.length===0
+                          ? <div style={{ color:'#cfd8dc', fontSize:13, padding:8 }}>No cameras for this model</div>
+                          : <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                            {modelCams.map(cam => {
+                              const st = statusOf(cam);
+                              return (
+                                <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
+                                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 10px', borderRadius:8, border:`1px solid ${st==='done'?'#c8e6c9':st==='in-progress'?'#fff9c4':'#f0f2f5'}`, background:st==='done'?'#f1f8e9':st==='in-progress'?'#fffde7':'#fafafa', cursor:'pointer' }}
+                                  onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.08)';}}
+                                  onMouseLeave={e=>{e.currentTarget.style.boxShadow='';}}>
+                                  <div>
+                                    <div style={{ fontSize:12, fontWeight:700, color:'#37474f' }}>{cam.name||'Unnamed'}</div>
+                                    <div style={{ fontSize:11, color:'#90a4ae' }}>{cam.floor ? (cam.floor==='Exterior'?'Exterior':`Floor ${cam.floor}`) : 'No floor'}</div>
+                                  </div>
+                                  <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:8, background:st==='done'?'#00c853':st==='in-progress'?'#ffab00':'#e0e0e0', color:st==='done'||st==='in-progress'?'#000':'#90a4ae' }}>
+                                    {st==='done'?'✓':st==='in-progress'?'…':'—'}
+                                  </span>
                                 </div>
-                                <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:8, background:st==='done'?'#00c853':st==='in-progress'?'#ffab00':'#e0e0e0', color:st==='done'||st==='in-progress'?'#000':'#90a4ae' }}>
-                                  {st==='done'?'✓':st==='in-progress'?'…':'—'}
-                                </span>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+                        }
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Notes */}
+            {(() => {
+              const camsWithNotes = [...cameras.filter(c=>c.notes&&c.notes.trim())].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+              return (
+                <div style={{ background:'#fff', borderRadius:14, padding:22, boxShadow:'0 2px 10px rgba(0,0,0,0.06)' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#90a4ae', textTransform:'uppercase', letterSpacing:0.8 }}>Notes</div>
+                    <div style={{ fontSize:11, color:'#b0bec5', fontWeight:600 }}>{camsWithNotes.length} camera{camsWithNotes.length!==1?'s':''}</div>
+                  </div>
+                  {camsWithNotes.length===0
+                    ? <div style={{ color:'#cfd8dc', fontSize:13, textAlign:'center', padding:'20px 0' }}>No cameras have notes yet</div>
+                    : <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {camsWithNotes.map(cam => (
+                        <div key={cam.id} onClick={()=>setSelectedCameraId(cam.id)}
+                          style={{ padding:'10px 12px', borderRadius:10, border:'1px solid #e8eaf6', background:'#f8f9ff', cursor:'pointer' }}
+                          onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.08)';e.currentTarget.style.borderColor='#9fa8da';}}
+                          onMouseLeave={e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.borderColor='#e8eaf6';}}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:5 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#37474f' }}>{cam.name||'Unnamed'}</div>
+                            <div style={{ fontSize:10, color:'#9fa8da', fontWeight:600, flexShrink:0, marginLeft:8 }}>
+                              {cam.floor ? (cam.floor==='Exterior'?'Exterior':`FL ${cam.floor}`) : ''}
+                            </div>
+                          </div>
+                          <div style={{ fontSize:11, color:'#5c6bc0', lineHeight:1.5 }}>{cam.notes}</div>
                         </div>
-                      }
+                      ))}
                     </div>
-                  )}
+                  }
                 </div>
               );
-            })}
+            })()}
+
           </div>
         </div>
 
