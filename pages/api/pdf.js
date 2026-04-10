@@ -1,7 +1,5 @@
 import PDFDocument from 'pdfkit';
 
-const TOTAL = 211;
-
 const isComplete = (c) =>
   c.name && c.floor && c.model && c.ip && c.switch_name &&
   c.switch_port && c.photo_install_url && c.screenshot_view_url;
@@ -29,12 +27,23 @@ export default async function handler(req, res) {
   const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
   if (!SB_URL || !SB_KEY) return res.status(500).json({ error: 'Missing env vars' });
 
-  // Fetch cameras
-  const dbRes = await fetch(`${SB_URL}/rest/v1/cameras?select=*&order=name.asc`, {
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
-  });
+  // Fetch cameras and settings in parallel
+  const [dbRes, settingsRes] = await Promise.all([
+    fetch(`${SB_URL}/rest/v1/cameras?select=*&order=name.asc`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    }),
+    fetch(`${SB_URL}/rest/v1/settings?select=*&limit=1`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    }),
+  ]);
   if (!dbRes.ok) return res.status(500).json({ error: 'Failed to fetch cameras' });
   const cameras = await dbRes.json();
+
+  // Use saved settings, fall back to defaults
+  const settingsRows = settingsRes.ok ? await settingsRes.json() : [];
+  const settings     = settingsRows[0] || {};
+  const TOTAL        = settings.total_cameras || 211;
+  const PROJECT_NAME = settings.project_name  || 'Camera Upgrade Project';
 
   const FLOORS_ORDER_PDF = ['Exterior','1','2','3','4','5','6','7','8','9','10','11','12','14','15','16','17','18','19','Roof'];
   const floorIdxPDF = f => { const i = FLOORS_ORDER_PDF.indexOf(f); return i === -1 ? 999 : i; };
@@ -47,7 +56,7 @@ export default async function handler(req, res) {
   const done      = cameras.filter(isComplete).length;
   const pct       = Math.round((done / TOTAL) * 100);
   const inProg    = cameras.filter(c => statusOf(c) === 'In Progress').length;
-  const pending   = TOTAL - cameras.length + cameras.filter(c => statusOf(c) === 'Pending').length;
+  const logged    = cameras.length;
   const generated = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
   // Build floor summary
@@ -103,7 +112,7 @@ export default async function handler(req, res) {
 
   // Report title right side
   fill(WHITE);
-  doc.font('Helvetica-Bold').fontSize(14).text('Camera Upgrade Project', 0, 44, { align: 'right', width: PW - M });
+  doc.font('Helvetica-Bold').fontSize(14).text(PROJECT_NAME, 0, 44, { align: 'right', width: PW - M });
   fill('rgba(255,255,255,0.6)');
   doc.font('Helvetica').fontSize(9).text(`Verkada Security System Deployment`, 0, 64, { align: 'right', width: PW - M });
   doc.fontSize(9).text(`Generated ${generated}`, 0, 78, { align: 'right', width: PW - M });
@@ -134,7 +143,7 @@ export default async function handler(req, res) {
   const cards = [
     { label: 'COMPLETE',     value: done,    color: GREEN },
     { label: 'IN PROGRESS',  value: inProg,  color: '#ffab00' },
-    { label: 'NOT STARTED',  value: Math.max(0, pending), color: '#ef5350' },
+    { label: 'CAMERAS LOGGED', value: logged,  color: GRAY },
     { label: 'TOTAL CAMERAS',value: TOTAL,   color: BLUE },
   ];
   cards.forEach((card, i) => {
